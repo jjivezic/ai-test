@@ -1,0 +1,11 @@
+node_modules
+logs
+*.log
+.env
+.DS_Store
+coverage
+dist
+build
+schema-generator.js
+.vscode
+.idea
