@@ -5,11 +5,15 @@ import {
   getDocumentStats,
   getAllVectorDocuments,
   deleteVectorDocuments,
-  resetVectorDocuments
+  resetVectorDocuments,
+  getProviderInfo,
 } from './controller.js';
 import { validate } from '../../middleware/validate.js';
-import { addDocumentsValidation, searchValidation, deleteDocumentsValidation } from './validation.js';
-// import authMiddleware from '../../middleware/authMiddleware.js';
+import {
+  addDocumentsValidation,
+  searchValidation,
+  deleteDocumentsValidation,
+} from './validation.js';
 
 const router = express.Router();
 
@@ -20,8 +24,39 @@ const router = express.Router();
  * @swagger
  * tags:
  *   name: Vector
- *   description: Vector database operations for RAG
+ *   description: Vector database operations for RAG (supports ChromaDB, Pinecone, Qdrant, Weaviate)
  */
+
+/**
+ * @swagger
+ * /api/vector/provider:
+ *   get:
+ *     summary: Get active vector database provider info
+ *     tags: [Vector]
+ *     responses:
+ *       200:
+ *         description: Provider info returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     provider:
+ *                       type: string
+ *                       example: chroma
+ *                     availableProviders:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     stats:
+ *                       type: object
+ */
+router.get('/provider', getProviderInfo);
 
 /**
  * @swagger
@@ -63,11 +98,7 @@ const router = express.Router();
  *       500:
  *         description: Server error
  */
-router.post(
-  '/add',
-  validate(addDocumentsValidation),
-  addVectorDocuments
-);
+router.post('/add', validate(addDocumentsValidation), addVectorDocuments);
 
 /**
  * @swagger
@@ -95,7 +126,7 @@ router.post(
  *                 description: Exact text to find in documents (case-insensitive)
  *               maxDistance:
  *                 type: number
- *                 description: Maximum distance threshold (lower = more similar)
+ *                 description: Maximum distance threshold (lower = more similar, 0-2)
  *     responses:
  *       200:
  *         description: Search results returned
@@ -104,11 +135,7 @@ router.post(
  *       500:
  *         description: Server error
  */
-router.post(
-  '/search',
-  validate(searchValidation),
-  searchVectorDocuments
-);
+router.post('/search', validate(searchValidation), searchVectorDocuments);
 
 /**
  * @swagger

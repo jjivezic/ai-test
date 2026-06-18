@@ -24,6 +24,13 @@ export const searchValidation = Joi.object({
     'any.required': 'Query is required',
   }),
   nResults: Joi.number().integer().min(1).max(20).optional().default(5),
+  keyword: Joi.string().optional().allow(null, '').max(200).messages({
+    'string.max': 'Keyword must be at most 200 characters',
+  }),
+  maxDistance: Joi.number().min(0).max(2).optional().allow(null).default(1).messages({
+    'number.min': 'Max distance must be at least 0',
+    'number.max': 'Max distance must be at most 2',
+  }),
 });
 
 export const deleteDocumentsValidation = Joi.object({

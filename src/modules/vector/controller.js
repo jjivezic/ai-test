@@ -1,12 +1,30 @@
-import { addMany, search, getStats, deleteMany, reset, getAll } from '../../services/vectorService.js';
+import {
+  addMany,
+  search,
+  getStats,
+  deleteMany,
+  reset,
+  getAll,
+  getActiveProviderName,
+} from '../../services/vectorService.js';
+import { VECTOR_PROVIDERS } from '../../config/vectorProviders.js';
 import logger from '../../config/logger.js';
 import { catchAsync } from '../../middleware/errorHandler.js';
+
+/**
+ * Helper to include active provider info in responses
+ */
+const withProvider = (data = {}) => ({
+  ...data,
+  provider: getActiveProviderName(),
+});
 
 export const addVectorDocuments = catchAsync(async (req, res) => {
   const { documents } = req.body;
 
   logger.info('Adding documents to vector DB', {
-    count: documents.length
+    count: documents.length,
+    provider: getActiveProviderName(),
   });
 
   const result = await addMany(documents);
@@ -15,8 +33,8 @@ export const addVectorDocuments = catchAsync(async (req, res) => {
 
   res.json({
     success: true,
-    data: result,
-    message: 'Documents added successfully'
+    data: withProvider(result),
+    message: 'Documents added successfully',
   });
 });
 
@@ -27,25 +45,26 @@ export const searchVectorDocuments = catchAsync(async (req, res) => {
     query,
     nResults,
     keyword,
-    maxDistance
+    maxDistance,
+    provider: getActiveProviderName(),
   });
 
   const results = await search(query, nResults, keyword, maxDistance);
 
   logger.info('Search completed', {
-    resultsFound: results.length
+    resultsFound: results.length,
   });
 
   res.json({
     success: true,
-    data: {
+    data: withProvider({
       query,
       keyword,
       maxDistance,
       results,
-      count: results.length
-    },
-    message: 'Search completed successfully'
+      count: results.length,
+    }),
+    message: 'Search completed successfully',
   });
 });
 
@@ -56,8 +75,8 @@ export const getDocumentStats = catchAsync(async (req, res) => {
 
   res.json({
     success: true,
-    data: stats,
-    message: 'Stats retrieved successfully'
+    data: withProvider(stats),
+    message: 'Stats retrieved successfully',
   });
 });
 
@@ -65,15 +84,15 @@ export const deleteVectorDocuments = catchAsync(async (req, res) => {
   const { ids } = req.body;
 
   logger.info('Deleting documents from vector DB', {
-    count: ids.length
+    count: ids.length,
   });
 
   const result = await deleteMany(ids);
 
   res.json({
     success: true,
-    data: result,
-    message: 'Documents deleted successfully'
+    data: withProvider(result),
+    message: 'Documents deleted successfully',
   });
 });
 
@@ -84,8 +103,8 @@ export const resetVectorDocuments = catchAsync(async (req, res) => {
 
   res.json({
     success: true,
-    data: result,
-    message: 'Vector database reset successfully'
+    data: withProvider(result),
+    message: 'Vector database reset successfully',
   });
 });
 
@@ -96,7 +115,27 @@ export const getAllVectorDocuments = catchAsync(async (req, res) => {
 
   res.json({
     success: true,
-    data: result,
-    message: 'Documents retrieved successfully'
+    data: withProvider(result),
+    message: 'Documents retrieved successfully',
+  });
+});
+
+/**
+ * Get the active vector database provider info
+ */
+export const getProviderInfo = catchAsync(async (req, res) => {
+  logger.info('Getting vector DB provider info');
+
+  const providerName = getActiveProviderName();
+  const stats = await getStats();
+
+  res.json({
+    success: true,
+    data: {
+      provider: providerName,
+      availableProviders: Object.values(VECTOR_PROVIDERS),
+      stats,
+    },
+    message: 'Provider info retrieved successfully',
   });
 });

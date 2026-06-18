@@ -4,9 +4,9 @@ import { AppError } from '../middleware/errorHandler.js';
 import { ERROR_CODES } from '../config/errorCodes.js';
 
 // Configuration constants
-const DEFAULT_CHAT_MODEL = 'gemini-2.0-flash-exp';
-const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
-const DEFAULT_VISION_MODEL = 'gemini-pro-vision';
+const DEFAULT_CHAT_MODEL = 'gemini-2.0-flash'; // Removed '-exp' for stable production
+const DEFAULT_EMBEDDING_MODEL = 'gemini-embedding-001'; // <-- CRITICAL FIX HERE
+const DEFAULT_VISION_MODEL = 'gemini-2.0-flash'; // Flash natively handles vision/images
 const DEFAULT_MAX_TOKENS = 500;
 const DEFAULT_TEMPERATURE = 0.7;
 
