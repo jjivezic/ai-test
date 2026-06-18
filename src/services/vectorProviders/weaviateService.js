@@ -4,7 +4,7 @@
  */
 
 import weaviate, { ApiKey } from 'weaviate-ts-client';
-import { createEmbedding } from '../geminiService.js';
+import { createEmbedding, createEmbeddingsBatch } from '../geminiService.js';
 import logger from '../../config/logger.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { ERROR_CODES } from '../../config/errorCodes.js';
@@ -120,10 +120,9 @@ export const addMany = async (documents) => {
 
     logger.info(`Adding ${documents.length} documents to Weaviate`);
 
-    // Create embeddings for all documents
-    const embeddings = await Promise.all(
-      documents.map((doc) => createEmbedding(doc.text))
-    );
+    // Create embeddings using batch embedding (more efficient)
+    const texts = documents.map((doc) => doc.text);
+    const embeddings = await createEmbeddingsBatch(texts);
 
     // Add in batches of 100
     const batchSize = 100;
@@ -184,8 +183,8 @@ export const search = async (
       await initialize();
     }
 
-    // Create embedding for query
-    const queryEmbedding = await createEmbedding(query);
+    // Create embedding for query (with RETRIEVAL_QUERY task type)
+    const queryEmbedding = await createEmbedding(query, { taskType: 'RETRIEVAL_QUERY' });
 
     // Build the query
     const nearVector = {

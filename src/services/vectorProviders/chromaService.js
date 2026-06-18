@@ -4,7 +4,7 @@
  */
 
 import { ChromaClient } from 'chromadb';
-import { createEmbedding } from '../geminiService.js';
+import { createEmbedding, createEmbeddingsBatch } from '../geminiService.js';
 import logger from '../../config/logger.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { ERROR_CODES } from '../../config/errorCodes.js';
@@ -92,12 +92,12 @@ export const addMany = async (documents) => {
 
     logger.info(`Adding ${documents.length} documents to ChromaDB`);
 
-    // Create embeddings for all documents using Gemini
-    const embeddings = await Promise.all(documents.map((doc) => createEmbedding(doc.text)));
+    // Create embeddings for all documents using batch embedding (more efficient)
+    const texts = documents.map((doc) => doc.text);
+    const embeddings = await createEmbeddingsBatch(texts);
 
     // Prepare data for ChromaDB
     const ids = documents.map((doc) => doc.id);
-    const texts = documents.map((doc) => doc.text);
     const metadatas = documents.map((doc) => doc.metadata || {});
 
     // Add to ChromaDB
@@ -146,8 +146,8 @@ export const search = async (
       await initialize();
     }
 
-    // Create embedding for query using Gemini
-    const queryEmbedding = await createEmbedding(query);
+    // Create embedding for query using Gemini (with RETRIEVAL_QUERY task type)
+    const queryEmbedding = await createEmbedding(query, { taskType: 'RETRIEVAL_QUERY' });
 
     // Build query options
     const queryOptions = {

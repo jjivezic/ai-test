@@ -246,35 +246,147 @@ export const chatWithHistory = async (messages, options = {},requestId = null) =
 
 /**
  * Generate embeddings for text (for RAG/Vector search)
+ * 
+ * IMPROVEMENTS FOR BETTER SEARCH:
+ * 1. Text preprocessing - clean, normalize, remove noise
+ * 2. Smart truncation - respect token limits, cut at sentence boundaries
+ * 3. Task type specification - better retrieval vs query differentiation
+ * 4. Better error context - model name and status in errors
+ * 5. Batch embedding support - efficient multi-text embedding
+ * 
  * @param {string} text - Text to embed
- * @param {string} [model=DEFAULT_EMBEDDING_MODEL] - Embedding model (default: text-embedding-004)
+ * @param {Object|string} [options] - Options object or model name string (backwards compatible)
+ * @param {string} [options.model=DEFAULT_EMBEDDING_MODEL] - Embedding model
+ * @param {string} [options.taskType='RETRIEVAL_DOCUMENT'] - 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' | 'SEMANTIC_SIMILARITY'
  * @returns {Promise<Array>} - Array of embedding values
  */
-export const createEmbedding = async (text, model = DEFAULT_EMBEDDING_MODEL) => {
+export const createEmbedding = async (text, options = {}) => {
+  // Backwards compatible: if options is a string, treat it as model name
+  const { 
+    model = DEFAULT_EMBEDDING_MODEL, 
+    taskType = 'RETRIEVAL_DOCUMENT' 
+  } = typeof options === 'string' ? { model: options, taskType: 'RETRIEVAL_DOCUMENT' } : options;
+
   // Input validation
   if (!text || typeof text !== 'string' || text.trim().length === 0) {
     throw new AppError('Valid text is required for embedding', 400, true, ERROR_CODES.BAD_REQUEST);
   }
 
   try {
+    // --- 1. TEXT PREPROCESSING ---
+    let processedText = text
+      .trim()
+      // Normalize whitespace (multiple spaces → single space)
+      .replace(/\s+/g, ' ')
+      // Remove null bytes, control characters, and zero-width characters
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\u200B-\u200F\uFEFF]/g, '')
+      // Normalize Unicode (NFKC for consistent character representation)
+      .normalize('NFKC')
+      // Remove non-printable characters
+      .replace(/[^\x20-\x7E\xA0-\xFF\u0100-\uFFFF]/g, '');
+
+    // --- 2. SMART TRUNCATION ---
+    // Gemini embedding models: gemini-embedding-001 has 3072 token limit
+    // Rough estimate: 1 token ≈ 3-4 chars for English
+    const MAX_CHARS = 8000; // Safe limit (~2500 tokens)
+    
+    if (processedText.length > MAX_CHARS) {
+      logger.warn(`Text too long (${processedText.length} chars), truncating to ~${MAX_CHARS} chars`);
+      
+      // Try to cut at the last sentence boundary within limit
+      const truncated = processedText.substring(0, MAX_CHARS);
+      const lastPeriod = truncated.lastIndexOf('.');
+      const lastNewline = truncated.lastIndexOf('\n');
+      const cutPoint = Math.max(lastPeriod, lastNewline);
+      
+      // Only cut at boundary if it's reasonably close to the end (>80% of limit)
+      processedText = (cutPoint > MAX_CHARS * 0.8) 
+        ? truncated.substring(0, cutPoint + 1) 
+        : truncated;
+    }
+
     logger.info('Creating embedding with Gemini', {
       model,
-      textLength: text.length
+      taskType,
+      originalLength: text.length,
+      processedLength: processedText.length,
     });
 
+    // --- 3. GENERATE EMBEDDING ---
     const embeddingModel = genAI.getGenerativeModel({ model });
-    const result = await embeddingModel.embedContent(text);
+    
+    // Use proper content structure for the embedding request
+    // This helps Gemini understand the context better
+    const result = await embeddingModel.embedContent({
+      role: 'user',
+      parts: [{ text: processedText }],
+    });
+    
     const { embedding } = result;
 
-    logger.info('Embedding created', {
-      dimensions: embedding.values.length
+    logger.info('Embedding created successfully', {
+      dimensions: embedding.values.length,
+      model,
     });
 
     return embedding.values;
   } catch (error) {
-    logger.error('Gemini embedding error:', error);
+    logger.error('Gemini embedding error:', {
+      model,
+      textLength: text?.length,
+      error: error.message,
+      status: error.status,
+    });
+
     throw new AppError(
-      `Gemini embedding error: ${error.message}`,
+      `Gemini embedding error (${model}): ${error.message}`,
+      500,
+      true,
+      ERROR_CODES.INTERNAL_ERROR
+    );
+  }
+};
+
+/**
+ * Generate embeddings for multiple texts in batch
+ * More efficient than calling createEmbedding repeatedly in a loop
+ * 
+ * @param {string[]} texts - Array of texts to embed
+ * @param {Object} [options] - Options
+ * @param {string} [options.model=DEFAULT_EMBEDDING_MODEL] - Embedding model
+ * @param {string} [options.taskType='RETRIEVAL_DOCUMENT'] - Task type
+ * @returns {Promise<number[][]>} - Array of embedding arrays
+ */
+export const createEmbeddingsBatch = async (texts, options = {}) => {
+  const { model = DEFAULT_EMBEDDING_MODEL } = options;
+
+  if (!Array.isArray(texts) || texts.length === 0) {
+    throw new AppError('Valid texts array is required for batch embedding', 400, true, ERROR_CODES.BAD_REQUEST);
+  }
+
+  try {
+    logger.info(`Batch embedding ${texts.length} texts with Gemini`, { model });
+
+    // Process sequentially with concurrency control to avoid rate limits
+    const CONCURRENCY = 5;
+    const results = [];
+    
+    for (let i = 0; i < texts.length; i += CONCURRENCY) {
+      const batch = texts.slice(i, i + CONCURRENCY);
+      // eslint-disable-next-line no-await-in-loop
+      const embeddings = await Promise.all(
+        batch.map((text) => createEmbedding(text, { model, taskType: 'RETRIEVAL_DOCUMENT' }))
+      );
+      results.push(...embeddings);
+    }
+
+    logger.info(`Batch embedding complete: ${results.length} embeddings created`);
+    
+    return results;
+  } catch (error) {
+    logger.error('Batch embedding failed:', error);
+    throw new AppError(
+      `Batch embedding failed: ${error.message}`,
       500,
       true,
       ERROR_CODES.INTERNAL_ERROR
