@@ -315,12 +315,21 @@ export const createEmbedding = async (text, options = {}) => {
     // --- 3. GENERATE EMBEDDING ---
     const embeddingModel = genAI.getGenerativeModel({ model });
     
-    // Use proper content structure for the embedding request
-    // This helps Gemini understand the context better
-    const result = await embeddingModel.embedContent({
-      role: 'user',
-      parts: [{ text: processedText }],
-    });
+    // The Gemini embedding API supports:
+    // - embedContent(text: string)
+    // - embedContent(request: EmbedContentRequest)
+    // We use the request format to specify task type and output dimensionality
+    const request = {
+      content: {
+        parts: [{ text: processedText }],
+      },
+      taskType,
+      // Gemini text-embedding models default to 768 dimensions
+      // Explicitly set it to match our vector DB configuration
+      outputDimensionality: 768,
+    };
+
+    const result = await embeddingModel.embedContent(request);
     
     const { embedding } = result;
 

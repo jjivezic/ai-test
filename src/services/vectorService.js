@@ -56,7 +56,6 @@ export const initialize = async () => {
  */
 export const addMany = async (documents) => {
   const provider = getActiveProvider();
-  logger.info(`Adding ${documents.length} documents to ${DEFAULT_PROVIDER}`);
   return provider.addMany(documents);
 };
 

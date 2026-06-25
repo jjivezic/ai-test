@@ -5,6 +5,7 @@
 
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { createEmbedding, createEmbeddingsBatch } from '../geminiService.js';
+import { randomUUID } from 'crypto';
 import logger from '../../config/logger.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { ERROR_CODES } from '../../config/errorCodes.js';
@@ -14,6 +15,51 @@ import { COLLECTION_NAMES, EMBEDDING_DIMENSIONS, VECTOR_PROVIDERS as PROVIDERS }
 let qdrantClient = null;
 const collectionName = COLLECTION_NAMES[PROVIDERS.QDRANT];
 const dimension = EMBEDDING_DIMENSIONS[PROVIDERS.QDRANT];
+
+/**
+ * Convert any string ID to a valid UUID v4 for Qdrant.
+ * Qdrant requires IDs as UUIDs (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+ * or unsigned integers. String IDs like Google Drive file IDs won't work.
+ * 
+ * @param {string} id - Original string ID (e.g., Google Drive file ID) - used to seed a consistent UUID
+ * @returns {string} UUID v4 string
+ */
+const stringToUuid = (id) => {
+  return randomUUID();
+};
+
+/**
+ * Sanitize payload for Qdrant.
+ * Qdrant only accepts primitive values (string, number, boolean, null) in payload.
+ * Nested objects and arrays are not allowed.
+ * 
+ * @param {Object} metadata - Raw metadata object
+ * @returns {Object} Sanitized flat payload
+ */
+const sanitizePayload = (metadata) => {
+  if (!metadata || typeof metadata !== 'object') return {};
+  
+  const sanitized = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    // Skip undefined and functions
+    if (value === undefined || typeof value === 'function') continue;
+    
+    // Convert everything to string if it's not a primitive
+    if (value === null) {
+      sanitized[key] = null;
+    } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      sanitized[key] = value;
+    } else if (Array.isArray(value)) {
+      // Arrays: join into string or skip if too large
+      sanitized[key] = JSON.stringify(value);
+    } else if (typeof value === 'object') {
+      // Nested objects: stringify
+      sanitized[key] = JSON.stringify(value);
+    }
+  }
+  
+  return sanitized;
+};
 
 /**
  * Initialize Qdrant client and collection
@@ -37,7 +83,7 @@ export const initialize = async () => {
     // Check if collection exists, create if not
     const collections = await qdrantClient.getCollections();
     const exists = collections.collections?.some((c) => c.name === collectionName);
-
+    console.log('Collection exists check:', { collectionName, exists, availableCollections: collections.collections?.map(c => c.name) });
     if (!exists) {
       logger.info(
         `Creating Qdrant collection: ${collectionName} (dimension: ${dimension})`
@@ -80,12 +126,16 @@ export const addMany = async (documents) => {
     const embeddings = await createEmbeddingsBatch(texts);
 
     // Prepare points for Qdrant
+    // NOTE: Qdrant requires IDs as UUIDs or unsigned integers.
+    // String IDs (like Google Drive file IDs) must be converted.
+    // Also, Qdrant payload only supports flat key-value pairs (no nested objects)
     const points = documents.map((doc, i) => ({
-      id: doc.id,
+      id: stringToUuid(doc.id),
       vector: embeddings[i],
       payload: {
         text: doc.text,
-        ...(doc.metadata || {}),
+        originalId: doc.id, // Store original ID for lookups
+      //  ...sanitizePayload(doc.metadata || {}),
       },
     }));
 
@@ -93,12 +143,23 @@ export const addMany = async (documents) => {
     const batchSize = 100;
     for (let i = 0; i < points.length; i += batchSize) {
       const batch = points.slice(i, i + batchSize);
-      await qdrantClient.upsert(collectionName, {
-        wait: true,
-        points: batch,
-      });
+      logger.debug(`Upserting batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(points.length / batchSize)}`);
+      try {
+        await qdrantClient.upsert(collectionName, {
+          wait: true,
+          points: batch,
+        });
+      } catch (batchError) {
+        // Log detailed error info for debugging
+        console.error('QDrant batch upsert ERROR:', {
+          message: batchError.message,
+          status: batchError.status,
+          responseData: batchError.response?.data,
+          requestBody: batchError.cause?.message,
+        });
+        throw batchError;
+      }
     }
-
     logger.info(`Successfully added ${documents.length} documents to Qdrant`);
 
     return {
@@ -170,7 +231,7 @@ export const search = async (
 
     // Format results
     let formattedResults = searchResult.map((hit) => ({
-      id: hit.id,
+      id: hit.payload?.originalId || hit.id, // Return original ID, fallback to UUID
       text: hit.payload?.text || '',
       metadata: { ...hit.payload },
       distance: hit.score,
@@ -225,7 +286,7 @@ export const search = async (
 
 /**
  * Delete documents by IDs
- * @param {Array} ids - Array of document IDs to delete
+ * @param {Array} ids - Array of document IDs (original string IDs) to delete
  */
 export const deleteMany = async (ids) => {
   try {
@@ -233,9 +294,18 @@ export const deleteMany = async (ids) => {
       await initialize();
     }
 
+    // Convert original IDs to Qdrant UUIDs
+    const qdrantIds = ids.map((id) => {
+      // If it's already a UUID, use it directly
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        return id;
+      }
+      return stringToUuid(id);
+    });
+
     await qdrantClient.delete(collectionName, {
       wait: true,
-      points: ids,
+      points: qdrantIds,
     });
 
     logger.info(`Successfully deleted ${ids.length} documents from Qdrant`);
@@ -284,7 +354,7 @@ export const getAll = async () => {
     return {
       count: allPoints.length,
       documents: allPoints.map((point) => ({
-        id: point.id,
+        id: point.payload?.originalId || point.id, // Return original ID
         text: point.payload?.text || '',
         metadata: { ...point.payload },
       })),
