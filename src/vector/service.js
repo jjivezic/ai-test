@@ -11,14 +11,14 @@
  * 'chroma', 'pinecone', 'qdrant', or 'weaviate'
  */
 
-import { VECTOR_PROVIDERS, DEFAULT_PROVIDER } from '../config/vectorProviders.js';
+import { VECTOR_PROVIDERS, DEFAULT_PROVIDER } from './config.js';
 import logger from '../config/logger.js';
 
 // Provider-specific services
-import * as chromaService from './vectorProviders/chromaService.js';
-import * as pineconeService from './vectorProviders/pineconeService.js';
-import * as qdrantService from './vectorProviders/qdrantService.js';
-import * as weaviateService from './vectorProviders/weaviateService.js';
+import * as chromaService from './providers/chroma.js';
+import * as pineconeService from './providers/pinecone.js';
+import * as qdrantService from './providers/qdrant.js';
+import * as weaviateService from './providers/weaviate.js';
 
 /**
  * Get the currently active provider service based on environment config

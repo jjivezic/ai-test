@@ -1,5 +1,5 @@
-import { chat as openaiChat, chatWithHistory as openaiChatWithHistory } from '../../services/openaiService.js';
-import { chat as geminiChat, chatWithHistory as geminiChatWithHistory } from '../../services/geminiService.js';
+import { chat as openaiChat, chatWithHistory as openaiChatWithHistory } from '../../ai/providers/openai.js';
+import { chat as geminiChat, chatWithHistory as geminiChatWithHistory } from '../../ai/providers/gemini.js';
 import logger from '../../config/logger.js';
 import { catchAsync, AppError } from '../../middleware/errorHandler.js';
 import { ERROR_CODES } from '../../config/errorCodes.js';

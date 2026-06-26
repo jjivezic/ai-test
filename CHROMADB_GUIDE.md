@@ -6,9 +6,11 @@ Napravljen potpuni RAG (Retrieval Augmented Generation) sistem sa ChromaDB!
 
 ✅ ChromaDB instaliran  
 ✅ Vector servis kreiran  
-✅ Gemini embeddings integracija  
+✅ AI embeddings integracija (Gemini ili OpenAI preko factory)  
 ✅ CRUD API endpoints  
 ✅ Swagger dokumentacija  
+✅ LangChain agent sa alatima  
+✅ Google Drive sync (npm run ingest:drive)
 
 ## API Endpoints:
 
@@ -115,10 +117,10 @@ curl -X POST http://localhost:3000/api/vector/reset \
 ## Korišćenje u Kodu:
 
 ```javascript
-import vectorService from './services/vectorService.js';
+import { search, getStats, addDocuments } from './services/vectorService.js';
 
 // 1. Dodaj dokumente
-await vectorService.addDocuments([
+await addDocuments([
   {
     id: 'contract-xyz',
     text: 'Ugovor sa klijentom XYZ o izradi web aplikacije...',
@@ -131,10 +133,7 @@ await vectorService.addDocuments([
 ]);
 
 // 2. Pretraži
-const results = await vectorService.search(
-  'Gde je ugovor sa klijentom XYZ?',
-  5
-);
+const results = await search('Gde je ugovor sa klijentom XYZ?', 5);
 
 console.log(results);
 // [{
@@ -145,37 +144,25 @@ console.log(results);
 // }]
 
 // 3. Dobavi statistiku
-const stats = await vectorService.getStats();
+const stats = await getStats();
 console.log(stats); // { collectionName: 'documents', documentCount: 100 }
 ```
 
-## RAG Pattern - AI sa Kontekstom:
+## RAG Pattern - AI sa Kontekstom (provider-agnostic):
 
 ```javascript
-// Kombinuj Vector Search + Gemini Chat
-import vectorService from './services/vectorService.js';
-import geminiService from './services/geminiService.js';
+import { search } from './services/vectorService.js';
+import { ragQuery } from './services/ai/factory.js';
 
 async function askQuestion(question) {
   // 1. Pronađi relevantne dokumente
-  const relevantDocs = await vectorService.search(question, 3);
+  const relevantDocs = await search(question, 3);
   
-  // 2. Napravi kontekst
-  const context = relevantDocs
-    .map(doc => doc.text)
-    .join('\n\n');
-  
-  // 3. Pitaj AI sa kontekstom
-  const prompt = `
-    Kontekst iz dokumenata:
-    ${context}
-    
-    Pitanje: ${question}
-    
-    Odgovori na osnovu konteksta:
-  `;
-  
-  const answer = await geminiService.chat(prompt);
+  // 2. Pitaj AI sa kontekstom (radi sa Gemini ili OpenAI)
+  const answer = await ragQuery(
+    question,
+    relevantDocs.map(doc => doc.text)
+  );
   
   return {
     answer,
@@ -189,14 +176,59 @@ console.log(result.answer);
 console.log('Izvori:', result.sources);
 ```
 
+## LangChain Agent - AI Assistant sa Alatima:
+
+Agent može da pretražuje dokumente, šalje email i sumira fajlove.
+
+```javascript
+import { executeTask } from './services/agentService.js';
+
+// Agent automatski bira alate i odgovara na pitanja
+const result = await executeTask('Pronađi ugovore iz 2024. godine');
+console.log(result.answer);
+```
+
+Podržani alati:
+- **searchDocuments** - Pretraga dokumenata u vector DB
+- **sendEmail** - Slanje email-a
+- **getDocumentStats** - Statistika baze
+- **summarizeDocument** - Sumiranje dokumenata
+
+Radi sa Gemini ili OpenAI (podesi u `.env`: `AI_PROVIDER=gemini` ili `AI_PROVIDER=openai`)
+
 ## Kako Radi:
 
 ```
-1. Dodaješ Tekst → Gemini kreira Embeddings (768 brojeva)
-2. ChromaDB čuva embeddings + tekst + metadata
-3. Pretraga → Gemini embedding od upita → ChromaDB pronalazi slične
+1. Dodaješ Tekst → AI kreira Embeddings (768 brojeva)
+2. Vector DB (Chroma/Qdrant/Pinecone/Weaviate) čuva embeddings + tekst + metadata
+3. Pretraga → Embedding od upita → DB pronalazi slične
 4. Vraća najsličnije dokumente sa distance score (niže = bolje)
 ```
+
+## Folder Struktura (servisi):
+
+```
+src/services/
+├── ai/
+│   ├── factory.js    ← Bira Gemini ili OpenAI
+│   ├── gemini.js     ← Gemini implementacija
+│   └── openai.js     ← OpenAI implementacija
+├── agentService.js   ← LangChain agent
+├── vectorService.js  ← Vector DB apstrakcija
+├── vectorProviders/  ← DB provideri
+└── ...
+```
+
+## Google Drive Sync:
+
+```bash
+# Ručno pokretanje
+npm run ingest:drive
+
+# Automatski: cron job (vidi src/jobs/systemJobs.js)
+```
+
+Podržani fajlovi: PDF, DOCX, XLSX, Google Docs, Google Sheets, TXT, CSV
 
 ## Persistent Storage:
 
@@ -239,6 +271,25 @@ curl -X POST http://localhost:3000/api/vector/search \
   -d '{"query": "Šta je vector database?"}'
 ```
 
+## AI Provider Config:
+
+U `.env` fajlu:
+```env
+# Biraj provider
+AI_PROVIDER=gemini    # ili openai
+
+# Gemini
+GEMINI_API_KEY=xxx
+GEMINI_MODEL=gemini-2.0-flash
+
+# OpenAI
+OPENAI_API_KEY=xxx
+OPENAI_MODEL=gpt-4
+
+# Vector DB
+VECTOR_DB_PROVIDER=chroma  # ili qdrant, pinecone, weaviate
+```
+
 ## Best Practices:
 
 1. **Chunking** - Razbij velike dokumente na manje delove (500-1000 karaktera)
@@ -246,16 +297,3 @@ curl -X POST http://localhost:3000/api/vector/search \
 3. **Unique IDs** - Koristi jedinstvene ID-jeve (npr. `${fileName}_chunk_${index}`)
 4. **Batch Insert** - Dodavaj više dokumenata odjednom (do 100)
 5. **Distance Threshold** - Filtriraj rezultate sa distance > 0.5
-
-## Sledeći Korak - Google Drive Integracija:
-
-```javascript
-// 1. Skeniranje Google Drive fajlova
-// 2. Ekstrakcija teksta (PDF, DOCX, etc)
-// 3. Chunking u manje delove
-// 4. Kreiranje embeddings
-// 5. Skladištenje u ChromaDB
-// 6. AI Chat sa kontekstom
-```
-
-Hoćeš da nastavimo sa Google Drive integracijom? 🚀

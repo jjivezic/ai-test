@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import db from '../../../database/models/index.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import logger from '../../config/logger.js';
-import emailService from '../../services/emailService.js';
+import emailService from '../../integration/email/service.js';
 
 const { User } = db;
 dotenv.config();

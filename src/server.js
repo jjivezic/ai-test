@@ -14,7 +14,7 @@ import swaggerSpec from './config/swagger.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 import { validateEnv } from './config/validateEnv.js';
 import { initializeJobs } from './jobs/index.js';
-import { startAllJobs } from './services/cronService.js';
+import { startAllJobs } from './jobs/service.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 
 dotenv.config();

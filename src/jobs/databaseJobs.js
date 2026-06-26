@@ -1,4 +1,4 @@
-import { registerJob } from '../services/cronService.js';
+import { registerJob } from './service.js';
 import logger from '../config/logger.js';
 
 /**

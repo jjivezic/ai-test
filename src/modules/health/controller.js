@@ -1,5 +1,5 @@
 import { catchAsync } from '../../middleware/errorHandler.js';
-import emailService from '../../services/emailService.js';
+import emailService from '../../integration/email/service.js';
 import db from '../../../database/models/index.js';
 import logger from '../../config/logger.js';
 

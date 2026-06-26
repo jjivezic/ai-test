@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.js\" \"database/**/*.js\"",
-    "ingest:drive": "node src/services/driveIngestionService.js"
+    "ingest:drive": "node src/scripts/syncDrive.js"
   },
   "keywords": [
     "express",
@@ -32,6 +32,11 @@
     "@aws-sdk/client-s3": "^3.958.0",
     "@aws-sdk/s3-request-presigner": "^3.958.0",
     "@google/generative-ai": "^0.24.1",
+    "@langchain/core": "^1.2.1",
+    "@langchain/google-genai": "^2.2.0",
+    "@langchain/langgraph": "^1.4.7",
+    "@langchain/openai": "^1.5.3",
+    "@langchain/textsplitters": "^1.0.1",
     "@pinecone-database/pinecone": "^8.0.0",
     "@qdrant/js-client-rest": "^1.18.0",
     "bcrypt": "^5.1.1",
@@ -44,9 +49,11 @@
     "express-fileupload": "^1.5.2",
     "express-rate-limit": "^8.2.1",
     "googleapis": "^169.0.0",
+    "graphql": "^16.14.2",
     "helmet": "^8.1.0",
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.2",
+    "langchain": "^1.5.2",
     "mammoth": "^1.11.0",
     "morgan": "^1.10.1",
     "mysql2": "^3.6.5",

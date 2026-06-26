@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { google } from 'googleapis';
-import logger from '../config/logger.js';
-import { AppError } from '../middleware/errorHandler.js';
-import { ERROR_CODES } from '../config/errorCodes.js';
+import logger from '../../config/logger.js';
+import { AppError } from '../../middleware/errorHandler.js';
+import { ERROR_CODES } from '../../config/errorCodes.js';
 
 /**
  * Google Drive Service

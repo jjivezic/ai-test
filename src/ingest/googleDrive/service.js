@@ -4,10 +4,11 @@ import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 import xlsx from 'xlsx';
 import 'dotenv/config';
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 
-import { listAllFilesIteratively, downloadFile, readGoogleSheet } from './googleDriveService.js';
-import { addMany, deleteMany, getAll } from './vectorService.js';
-import logger from '../config/logger.js';
+import { listAllFilesIteratively, downloadFile, readGoogleSheet } from '../../integration/googleDrive/service.js';
+import { addMany, deleteMany, getAll } from '../../vector/service.js';
+import logger from '../../config/logger.js';
 
 logger.info('Ingest Google Drive Folder Service Loaded');
 
@@ -83,20 +84,20 @@ async function extractText(filePath, mimeType, fileId = null) {
   if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
     try {
       logger.debug('Extracting XLSX from file:', filePath);
-      
+
       // Check file size and existence
       const stats = fs.statSync(filePath);
       logger.debug(`XLSX file size: ${stats.size} bytes`);
-      
+
       if (stats.size === 0) {
         logger.warn('XLSX file is empty (0 bytes)');
         return '';
       }
-      
+
       if (stats.size < 500) {
         logger.warn(`XLSX file suspiciously small (${stats.size} bytes), may be corrupted`);
       }
-      
+
       const workbook = xlsx.readFile(filePath, { cellDates: true });
       let text = '';
       workbook.SheetNames.forEach((sheetName) => {
@@ -118,16 +119,16 @@ async function extractText(filePath, mimeType, fileId = null) {
   if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || mimeType === 'application/vnd.google-apps.document') {
     try {
       logger.debug('Extracting DOCX from file:', filePath);
-      
+
       // Check file size and existence
       const stats = fs.statSync(filePath);
       logger.debug(`DOCX file size: ${stats.size} bytes`);
-      
+
       if (stats.size === 0) {
         logger.warn('DOCX file is empty (0 bytes)');
         return '';
       }
-      
+
       const result = await mammoth.extractRawText({ path: filePath });
       logger.debug(`DOCX extracted ${result.value.length} characters`);
       return result.value;
@@ -135,7 +136,7 @@ async function extractText(filePath, mimeType, fileId = null) {
       logger.error('DOCX extract error:', err.message);
       logger.debug('DOCX file path:', filePath);
       logger.debug('Full DOCX error:', err);
-      
+
       // Try reading as plain text fallback
       try {
         logger.debug('Attempting plain text fallback for DOCX...');
@@ -147,7 +148,7 @@ async function extractText(filePath, mimeType, fileId = null) {
       } catch (fallbackErr) {
         logger.debug('Plain text fallback also failed:', fallbackErr.message);
       }
-      
+
       return '';
     }
   }
@@ -328,15 +329,15 @@ async function ingestDriveFolder(folderId) {
         let text = '';
         if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
           logger.debug(`  📊 Reading Google Sheet: ${file.name}`);
-          
+
           // Try Sheets API first (no download needed)
           text = await extractText(null, file.mimeType, file.id);
-          
+
           // If Sheets API failed, download and try XLSX
           if (!text || text.trim().length === 0) {
             logger.debug(`  ⚠️  Sheets API failed, trying XLSX export...`);
             await downloadFile(file.id, destPath, file.mimeType);
-            
+
             if (fs.existsSync(destPath)) {
               text = await extractText(destPath, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', file.id);
             }
@@ -356,24 +357,35 @@ async function ingestDriveFolder(folderId) {
         }
 
         if (text?.trim()) {
-          // Remove extension from name (it's stored separately in extension field)
           const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-          
-          await addMany([
-            {
-              id: file.id,
-              text,
-              metadata: {
-                name: nameWithoutExt,
-                mimeType: file.mimeType,
-                folderPath: file.folderPath || '',
-                modifiedTime: file.modifiedTime,
-                extension: ext,
-                googleLink: generateGoogleLink(file.id, file.mimeType)
-              }
+
+          // Split text into chunks using LangChain
+          const splitter = new RecursiveCharacterTextSplitter({
+            chunkSize: 1000,
+            chunkOverlap: 200,
+            separators: ['\n\n', '\n', '.', ' ', ''],
+          });
+
+          const chunks = await splitter.splitText(text);
+
+          // Create documents from chunks
+          const docs = chunks.map((chunk, index) => ({
+            id: `${file.id}_${index}`,
+            text: chunk,
+            metadata: {
+              name: nameWithoutExt,
+              chunkIndex: index,
+              totalChunks: chunks.length,
+              mimeType: file.mimeType,
+              folderPath: file.folderPath || '',
+              modifiedTime: file.modifiedTime,
+              extension: ext,
+              googleLink: generateGoogleLink(file.id, file.mimeType)
             }
-          ]);
-          logger.debug(`  ✅ Indexed: ${file.name} (${text.length} chars)`);
+          }));
+
+          await addMany(docs);
+          logger.debug(`  ✅ Indexed: ${file.name} → ${chunks.length} chunks (${text.length} chars)`);
           processedCount += 1;
         } else {
           logger.debug(`  ⏭️  Skipped (empty): ${file.name}`);

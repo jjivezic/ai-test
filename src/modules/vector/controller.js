@@ -6,8 +6,8 @@ import {
   reset,
   getAll,
   getActiveProviderName,
-} from '../../services/vectorService.js';
-import { VECTOR_PROVIDERS } from '../../config/vectorProviders.js';
+} from '../../vector/service.js';
+import { VECTOR_PROVIDERS } from '../../vector/config.js';
 import logger from '../../config/logger.js';
 import { catchAsync } from '../../middleware/errorHandler.js';
 

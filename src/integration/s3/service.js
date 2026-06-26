@@ -1,9 +1,9 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
-import logger from '../config/logger.js';
-import { AppError } from '../middleware/errorHandler.js';
-import { ERROR_CODES } from '../config/errorCodes.js';
+import logger from '../../config/logger.js';
+import { AppError } from '../../middleware/errorHandler.js';
+import { ERROR_CODES } from '../../config/errorCodes.js';
 
 // Configuration constants at top
 const BUCKET_NAME = process.env.S3_BUCKET;

@@ -1,7 +1,7 @@
-import { registerJob } from '../services/cronService.js';
+import { registerJob } from './service.js';
 import logger from '../config/logger.js';
 import db from '../../database/models/index.js';
-import ingestDriveFolder from '../services/driveIngestionService.js';
+import ingestDriveFolder from '../ingest/googleDrive/service.js';
 
 /**
  * System monitoring and health check jobs

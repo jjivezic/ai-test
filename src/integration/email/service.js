@@ -1,13 +1,13 @@
 import nodemailer from 'nodemailer';
 import { google } from 'googleapis';
-import logger from '../config/logger.js';
+import logger from '../../config/logger.js';
 import { 
   baseEmailTemplate, 
   welcomeEmailBody, 
   welcomeAIBody,
   passwordResetBody, 
   verificationEmailBody 
-} from '../templates/emailTemplate.js';
+} from './template.js';
 
 const { OAuth2 } = google.auth;
 

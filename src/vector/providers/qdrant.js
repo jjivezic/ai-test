@@ -4,12 +4,12 @@
  */
 
 import { QdrantClient } from '@qdrant/js-client-rest';
-import { createEmbedding, createEmbeddingsBatch } from '../geminiService.js';
+import { createEmbedding, createEmbeddingsBatch } from '../../ai/providers/gemini.js';
 import { randomUUID } from 'crypto';
 import logger from '../../config/logger.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { ERROR_CODES } from '../../config/errorCodes.js';
-import { COLLECTION_NAMES, EMBEDDING_DIMENSIONS, VECTOR_PROVIDERS as PROVIDERS } from '../../config/vectorProviders.js';
+import { COLLECTION_NAMES, EMBEDDING_DIMENSIONS, VECTOR_PROVIDERS as PROVIDERS } from '../config.js';
 
 // Module-level state
 let qdrantClient = null;
