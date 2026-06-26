@@ -33,7 +33,10 @@ const format = winston.format.combine(
   winston.format.printf(
     (info) => {
       const reqId = info.requestId ? `[${info.requestId}] ` : '';
-      return `${info.timestamp} ${info.level}: ${reqId}${info.message}`;
+      // Extract metadata (everything except timestamp, level, message, requestId)
+      const { timestamp, level, message, requestId, ...metadata } = info;
+      const metaStr = Object.keys(metadata).length > 0 ? ` ${JSON.stringify(metadata)}` : '';
+      return `${timestamp} ${level}: ${reqId}${message}${metaStr}`;
     }
   )
 );

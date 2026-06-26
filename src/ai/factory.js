@@ -1,12 +1,13 @@
 import * as geminiService from './providers/gemini.js';
 import * as openaiService from './providers/openai.js';
+import * as deepseekService from './providers/deepseek.js';
 import logger from '../config/logger.js';
 
 /**
  * AI Provider Factory
- * Switches between Gemini and OpenAI based on AI_PROVIDER env var
+ * Switches between Gemini, OpenAI, or DeepSeek based on AI_PROVIDER env var
  * 
- * Usage: AI_PROVIDER=gemini (default) or AI_PROVIDER=openai
+ * Usage: AI_PROVIDER=gemini (default), AI_PROVIDER=openai, or AI_PROVIDER=deepseek
  */
 
 const PROVIDER = process.env.AI_PROVIDER || 'gemini';
@@ -27,6 +28,12 @@ const providers = {
     createEmbedding: openaiService.createEmbedding,
     createEmbeddingsBatch: openaiService.createEmbeddingsBatch,
     // OpenAI doesn't have analyzeImage — will fallback
+  },
+  deepseek: {
+    chat: deepseekService.chat,
+    chatWithHistory: deepseekService.chatWithHistory,
+    ragQuery: deepseekService.ragQuery,
+    // DeepSeek doesn't have embeddings or vision — will fallback
   },
 };
 

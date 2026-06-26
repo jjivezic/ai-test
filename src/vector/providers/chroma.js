@@ -4,7 +4,7 @@
  */
 
 import { ChromaClient } from 'chromadb';
-import { createEmbedding, createEmbeddingsBatch } from '../../ai/providers/gemini.js';
+import { createEmbedding, createEmbeddingsBatch } from '../../ai/factory.js';
 import logger from '../../config/logger.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { ERROR_CODES } from '../../config/errorCodes.js';

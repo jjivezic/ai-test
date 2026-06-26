@@ -4,7 +4,7 @@
  */
 
 import { QdrantClient } from '@qdrant/js-client-rest';
-import { createEmbedding, createEmbeddingsBatch } from '../../ai/providers/gemini.js';
+import { createEmbedding, createEmbeddingsBatch } from '../../ai/factory.js';
 import { randomUUID } from 'crypto';
 import logger from '../../config/logger.js';
 import { AppError } from '../../middleware/errorHandler.js';
@@ -135,7 +135,12 @@ export const addMany = async (documents) => {
       payload: {
         text: doc.text,
         originalId: doc.id, // Store original ID for lookups
-      //  ...sanitizePayload(doc.metadata || {}),
+        name: doc.metadata?.name || '',
+        folderPath: doc.metadata?.folderPath || '',
+        extension: doc.metadata?.extension || '',
+        googleLink: doc.metadata?.googleLink || '',
+        mimeType: doc.metadata?.mimeType || '',
+        modifiedTime: doc.metadata?.modifiedTime || '',
       },
     }));
 

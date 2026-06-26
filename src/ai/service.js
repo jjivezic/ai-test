@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatOpenAI } from '@langchain/openai';
+import { ChatDeepSeek } from '@langchain/deepseek';
 import { HumanMessage } from '@langchain/core/messages';
 import { search as vectorSearch, getStats as vectorGetStats } from '../vector/service.js';
 import { chat } from './factory.js';
@@ -20,11 +21,20 @@ import { ERROR_CODES } from '../config/errorCodes.js';
 
 function getLLM() {
   const provider = process.env.AI_PROVIDER || 'gemini';
-
+   logger.info('=== getLLM provider:', provider);
   if (provider === 'openai') {
     return new ChatOpenAI({
       apiKey: process.env.OPENAI_API_KEY,
-      model: process.env.OPENAI_MODEL || 'gpt-4',
+      model: 'gpt-4',
+      temperature: 0.7,
+      maxTokens: 1000,
+    });
+  }
+
+  if (provider === 'deepseek') {
+    return new ChatDeepSeek({
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      model: 'deepseek-chat',
       temperature: 0.7,
       maxTokens: 1000,
     });
@@ -33,7 +43,7 @@ function getLLM() {
   // Default: Gemini
   return new ChatGoogleGenerativeAI({
     apiKey: process.env.GEMINI_API_KEY,
-    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    model: 'gemini-2.0-flash',
     temperature: 0.7,
     maxOutputTokens: 1000,
   });
@@ -54,13 +64,18 @@ const searchTool = new DynamicStructuredTool({
 
     const results = await vectorSearch(query, nResults || 10, keyword || null, 1.5);
 
+    if (!results?.length) {
+      return JSON.stringify({ success: true, count: 0, results: [] });
+    }
+
     return JSON.stringify({
       success: true,
       count: results.length,
       results: results.map((r) => ({
-        googleLink: r.googleLink,
-        fileName: r.metadata.name,
+        id: r.metadata.originalId || r.id,
+        fileName: r.metadata.name || 'Unknown',
         folderPath: r.metadata.folderPath || process.env.GOOGLE_DRIVE_FOLDER_ROOT_NAME,
+        googleLink: r.googleLink,
         path: r.path,
         distance: r.distance?.toFixed(3),
       })),
@@ -109,12 +124,17 @@ const summarizeTool = new DynamicStructuredTool({
 
     const nameWithoutExt = documentName.replace(/\.(pdf|docx?|xlsx?|txt|pptx?)$/i, '');
 
-    let searchResults = await vectorSearch(query || nameWithoutExt, 5, null, null, {
-      name: documentName,
-    });
+    // Search semantically — no keyword filter (avoids Qdrant index requirements)
+    let searchResults = await vectorSearch(query || nameWithoutExt, 5, null, null);
 
+    // If no results, try with name as keyword
     if (!searchResults?.length) {
-      searchResults = await vectorSearch(nameWithoutExt, 5, nameWithoutExt, null);
+      searchResults = await vectorSearch(query || nameWithoutExt, 5, nameWithoutExt, null);
+    }
+
+    // Final fallback: pure keyword-free search
+    if (!searchResults?.length) {
+      searchResults = await vectorSearch(nameWithoutExt, 3, null, null);
     }
 
     if (!searchResults?.length) {
@@ -153,15 +173,19 @@ CRITICAL RULES:
 
 TOOLS:
 - searchDocuments: Search documents in database
-- summarizeDocument: Summarize a specific document
+- summarizeDocument: Summarize a specific document (use the fileName from search results)
 - sendEmail: Send email
 - getDocumentStats: Database statistics
 
-IMPORTANT: Respond in the SAME LANGUAGE as the user's question (English, Serbian, etc.)`;
+IMPORTANT: 
+- Respond in the SAME LANGUAGE as the user's question (English, Serbian, etc.)
+- When summarizing, use the fileName from search results, NOT random IDs
+- Summarize ONE document at a time
+- If searchDocuments returns results, use those directly — don't call summarizeDocument for every single result`;
 
 // --- Exported executeTask ---
 
-export const executeTask = async (userPrompt, maxIterations = 5) => {
+export const executeTask = async (userPrompt, maxIterations = 15) => {
   if (!userPrompt || typeof userPrompt !== 'string' || userPrompt.trim().length === 0) {
     throw new AppError('Valid prompt is required', 400, true, ERROR_CODES.BAD_REQUEST);
   }
@@ -205,9 +229,9 @@ export const executeTask = async (userPrompt, maxIterations = 5) => {
       .pop();
 
     if (searchResults?.results?.length > 0) {
-      finalAnswer += '\n\n';
+      finalAnswer += '\n\n**Found documents:**';
       searchResults.results.forEach((r, i) => {
-        finalAnswer += `\n${i + 1}. 📂 ${r.folderPath}\n   📄 ${r.fileName}`;
+        finalAnswer += `\n${i + 1}. 📂 ${r.folderPath || ''}\n   📄 ${r.fileName}`;
         if (r.googleLink) {
           finalAnswer += `\n   🔗 <a href="${r.googleLink}" target="_blank">Open</a>`;
         }
@@ -215,14 +239,15 @@ export const executeTask = async (userPrompt, maxIterations = 5) => {
       });
     }
 
-    return { success: true, answer: finalAnswer, iterations: result.messages.length };
+    const toolCalls = result.messages.filter(m => m._getType === 'tool' || m.name).length;
+    return { success: true, answer: finalAnswer, iterations: toolCalls || result.messages.length };
   } catch (error) {
     logger.error('Agent failed:', error.message);
 
     if (error.message?.includes('recursion') || error.message?.includes('max iterations')) {
       return {
         success: true,
-        answer: 'Task requires too many steps. Here is what I found so far.',
+        answer: 'Task required too many steps. Here is what I found so far.',
         iterations: maxIterations,
       };
     }
