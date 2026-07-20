@@ -16,65 +16,140 @@ Node.js REST API server with JWT authentication and MySQL database.
 - 📚 Swagger API Documentation
 - 🎨 Centralized Error Handling
 
+## AI & Vector Database Support
+
+This project includes built-in AI and vector search support:
+
+- AI provider selection via `AI_PROVIDER` in `.env`
+- Supported LLM providers: `gemini`, `openai`, `deepseek`
+- Vector DB selection via `VECTOR_DB_PROVIDER` in `.env`
+- Supported vector databases: `chroma`, `pinecone`, `qdrant`, `weaviate`
+- Embeddings and semantic search are handled through `src/vector/service.js`
+- AI operations are exposed through `src/ai/factory.js`
+
 ## Project Structure
 
 ```
-server/
-├── database/
-│   ├── config.js                # Sequelize configuration
-│   ├── connection.js            # Database connection
-│   ├── models/
-│   │   ├── index.js             # Models index
-│   │   └── User.js              # User model
-│   ├── migrations/
-│   │   └── 20251222000001-create-users-table.js
-│   └── seeders/
-│       └── 20251222000001-demo-users.js
-├── src/
-│   ├── modules/
-│   │   ├── auth/
-│   │   │   ├── controller.js    # Auth endpoints
-│   │   │   ├── manager.js       # Auth business logic
-│   │   │   └── routes.js        # Auth routes
-│   │   └── users/
-│   │       ├── controller.js    # User endpoints
-│   │       ├── manager.js       # User business logic
-│   │       └── routes.js        # User routes
-│   ├── middleware/
-│   │   └── authMiddleware.js    # JWT verification
-│   ├── routes/
-│   │   └── index.js             # Main router
-│   └── server.js                # Express app entry point
-├── .env.example
-├── .sequelizerc                 # Sequelize CLI config
-├── .gitignore
-├── package.json
-└── README.md
+database/
+├── config.cjs
+├── connection.js
+├── models/
+│   ├── index.js
+│   ├── Product.js
+│   └── User.js
+├── migrations/
+├── seeders/
+├── schema-definition.js
+└── schema-generator.js
+src/
+├── ai/
+│   ├── factory.js
+│   ├── service.js
+│   └── providers/
+│       ├── deepseek.js
+│       ├── gemini.js
+│       └── openai.js
+├── config/
+│   ├── errorCodes.js
+│   ├── logger.js
+│   ├── swagger.js
+│   └── validateEnv.js
+├── ingest/
+│   └── googleDrive/
+│       └── service.js
+├── integration/
+│   ├── email/
+│   │   ├── service.js
+│   │   └── template.js
+│   ├── googleDrive/
+│   │   └── service.js
+│   └── s3/
+│       └── service.js
+├── jobs/
+│   ├── databaseJobs.js
+│   ├── index.js
+│   ├── service.js
+│   └── systemJobs.js
+├── middleware/
+│   ├── authMiddleware.js
+│   ├── errorHandler.js
+│   ├── morganMiddleware.js
+│   ├── queryHelpers.js
+│   ├── rateLimiter.js
+│   ├── requestId.js
+│   └── validate.js
+├── modules/
+│   ├── agent/
+│   │   ├── controller.js
+│   │   ├── routes.js
+│   │   └── validation.js
+│   ├── ai/
+│   │   ├── controller.js
+│   │   ├── routes.js
+│   │   └── validation.js
+│   ├── auth/
+│   │   ├── controller.js
+│   │   ├── manager.js
+│   │   ├── routes.js
+│   │   └── validation.js
+│   ├── health/
+│   │   ├── controller.js
+│   │   └── routes.js
+│   ├── product/
+│   │   ├── controller.js
+│   │   ├── manager.js
+│   │   ├── routes.js
+│   │   └── validation.js
+│   ├── users/
+│   │   ├── controller.js
+│   │   ├── manager.js
+│   │   ├── routes.js
+│   │   └── validation.js
+│   └── vector/
+│       ├── controller.js
+│       ├── routes.js
+│       └── validation.js
+├── routes/
+│   └── index.js
+├── server.js
+└── vector/
+    ├── config.js
+    ├── service.js
+    └── providers/
+        ├── chroma.js
+        ├── pinecone.js
+        ├── qdrant.js
+        └── weaviate.js
 ```
 
 ## Installation
 
-1. Clone the repository
+1. Clone the repository:
+```bash
+git clone <repo-url>
+cd node-test-AI
+```
 2. Install dependencies:
 ```bash
-4. Update `.env` with your database credentials and JWT secret
-
-5. Run database migrations:
+npm install
+```
+3. Copy the `.env.example` file to `.env` and update values:
+```bash
+cp .env.example .env
+```
+4. Set your AI and vector provider configuration in `.env`:
+```bash
+AI_PROVIDER=gemini
+VECTOR_DB_PROVIDER=chroma
+```
+5. Update database credentials and JWT settings in `.env`.
+6. Run database migrations:
 ```bash
 npm run db:migrate
 ```
-
-6. (Optional) Seed demo data:
+7. (Optional) Seed demo data:
 ```bash
 npm run db:seed
-```.env.example .env
-```
-
-4. Update `.env` with your database credentials and JWT secret
-
-5. Create database and tables:
-```bash
-mysql -u root -p < database/schema.sql
 ```
 
 ## Usage
