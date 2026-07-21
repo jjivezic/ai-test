@@ -44,6 +44,6 @@ const router = express.Router();
  *       500:
  *         description: Server error
  */
-router.post('/task', validate(executeTaskValidation), agentExecuteTask);
+router.post('/rag', validate(executeTaskValidation), agentExecuteTask);
 
 export default router;

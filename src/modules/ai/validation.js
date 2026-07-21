@@ -8,11 +8,11 @@ export const chatValidation = Joi.object({
     'any.required': 'Prompt is required',
   }),
   provider: Joi.string()
-    .valid('openai', 'gemini')
+    .valid('openai', 'gemini', 'deepseek')
     .optional()
     .default('gemini')
     .messages({
-      'any.only': 'Provider must be either openai or gemini',
+      'any.only': 'Provider must be either openai, gemini, or deepseek ',
     }),
   model: Joi.string().optional().messages({
     'string.base': 'Model must be a string',

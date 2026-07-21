@@ -1,5 +1,6 @@
 import { chat as openaiChat, chatWithHistory as openaiChatWithHistory } from '../../ai/providers/openai.js';
 import { chat as geminiChat, chatWithHistory as geminiChatWithHistory } from '../../ai/providers/gemini.js';
+import { chat as deepseekChat } from '../../ai/providers/deepseek.js';
 import logger from '../../config/logger.js';
 import { catchAsync, AppError } from '../../middleware/errorHandler.js';
 import { ERROR_CODES } from '../../config/errorCodes.js';
@@ -30,6 +31,17 @@ export const AIchat = catchAsync(async (req, res) => {
   } else if (provider === 'openai') {
     usedModel = model || 'gpt-3.5-turbo';
     response = await openaiChat(
+      prompt,
+      {
+        model: usedModel,
+        maxTokens,
+        temperature
+      },
+      req.id
+    );
+  } else if (provider === 'deepseek') {
+    usedModel = model || 'deepseek-chat';
+    response = await deepseekChat(
       prompt,
       {
         model: usedModel,
